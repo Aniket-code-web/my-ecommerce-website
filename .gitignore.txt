@@ -1,0 +1,14 @@
+# Frontend
+ecommerce-web-page/node_modules/
+ecommerce-web-page/dist/
+
+# Backend
+ecommerce-backend/target/
+
+# Environment files
+.env
+.env.local
+
+# OS files
+Thumbs.db
+.DS_Store
