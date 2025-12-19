@@ -1,15 +1,14 @@
 package com.aniket.config;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -20,9 +19,6 @@ import java.util.Collections;
 @Configuration
 public class AppConfig {
 
-    @Autowired
-    private JwtValidator jwtValidator;
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
@@ -31,19 +27,23 @@ public class AppConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                .authorizeHttpRequests(auth ->
-                        auth
-                                // ⭐ MAKE PRODUCT APIS PUBLIC
-                                .requestMatchers("/api/products/**").permitAll()
-                                .requestMatchers("/api/category/**").permitAll()
+                .authorizeHttpRequests(auth -> auth
 
-                                // ⭐ ALL ADMIN APIs PROTECTED
-                                .requestMatchers("/api/admin/**").authenticated()
+                        // ✅ ALLOW PREFLIGHT REQUESTS
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                                // ⭐ OTHER USER APIs REQUIRE JWT
-                                .requestMatchers("/api/**").authenticated()
+                        // ✅ PUBLIC APIs
+                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/api/products/**").permitAll()
+                        .requestMatchers("/api/category/**").permitAll()
 
-                                .anyRequest().permitAll()
+                        // 🔒 ADMIN APIs
+                        .requestMatchers("/api/admin/**").authenticated()
+
+                        // 🔒 USER APIs
+                        .requestMatchers("/api/**").authenticated()
+
+                        .anyRequest().permitAll()
                 )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .addFilterBefore(new JwtValidator(), BasicAuthenticationFilter.class);
@@ -53,17 +53,24 @@ public class AppConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        return request -> {
+        return (HttpServletRequest request) -> {
             CorsConfiguration cfg = new CorsConfiguration();
+
             cfg.setAllowedOrigins(Arrays.asList(
                     "http://localhost:5173",
-                    "http://localhost:4200"
+                    "http://localhost:4200",
+                    "https://aniketmuni-ecommerce.vercel.app" // ✅ NO SLASH
             ));
-            cfg.setAllowedMethods(Collections.singletonList("*"));
+
+            cfg.setAllowedMethods(Arrays.asList(
+                    "GET", "POST", "PUT", "DELETE", "OPTIONS"
+            ));
+
             cfg.setAllowedHeaders(Collections.singletonList("*"));
             cfg.setAllowCredentials(true);
             cfg.setExposedHeaders(Arrays.asList("Authorization"));
             cfg.setMaxAge(3600L);
+
             return cfg;
         };
     }
@@ -73,4 +80,3 @@ public class AppConfig {
         return new BCryptPasswordEncoder();
     }
 }
-
