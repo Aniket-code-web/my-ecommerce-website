@@ -22,25 +22,31 @@ import java.util.List;
 
 @Component
 public class JwtValidator extends OncePerRequestFilter {
+
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
 
         String path = request.getRequestURI();
 
-        // ⛔ Bypass JWT validation for login & signup
-        if (path.startsWith("/auth/signin") || path.startsWith("/auth/signup")) {
+        // ✅ Skip auth APIs
+        if (path.startsWith("/auth")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String jwt = request.getHeader(JwtConstant.JWT_HEADER);
+        String header = request.getHeader(JwtConstant.JWT_HEADER);
 
-        if (jwt != null && jwt.startsWith("Bearer ")) {
-            jwt = jwt.substring(7);
-
+        if (header != null && header.startsWith("Bearer ")) {
             try {
-                SecretKey key = Keys.hmacShaKeyFor(JwtConstant.SECRET_KEY.getBytes());
+                String jwt = header.substring(7);
+
+                SecretKey key = Keys.hmacShaKeyFor(
+                        JwtConstant.SECRET_KEY.getBytes()
+                );
 
                 Claims claims = Jwts.parserBuilder()
                         .setSigningKey(key)
@@ -48,16 +54,21 @@ public class JwtValidator extends OncePerRequestFilter {
                         .parseClaimsJws(jwt)
                         .getBody();
 
-                String email = (String) claims.get("email");
-                String authorities = (String) claims.get("authorities");
+                String email = claims.get("email", String.class);
+                String authorities = claims.get("authorities", String.class);
 
-                List<GrantedAuthority> auths = AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
+                List<GrantedAuthority> auths =
+                        AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
 
-                Authentication auth = new UsernamePasswordAuthenticationToken(email, null, auths);
+                Authentication auth =
+                        new UsernamePasswordAuthenticationToken(email, null, auths);
+
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
             } catch (Exception e) {
-                throw new BadCredentialsException("invalid token... from jwt validation");
+                // ❌ DO NOT THROW EXCEPTION
+                // ✅ Just clear context
+                SecurityContextHolder.clearContext();
             }
         }
 
