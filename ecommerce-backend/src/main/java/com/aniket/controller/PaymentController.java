@@ -66,7 +66,7 @@ public class PaymentController {
 
             paymentLinkRequest.put(
                     "callback_url",
-                    "https://aniketmuni-ecommerce.vercel.app/"  + order.getId()
+                    "https://aniketmuni-ecommerce.vercel.app/" + orderId + "?order_id=" + orderId
             );
             paymentLinkRequest.put("callback_method", "get");
 
