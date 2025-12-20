@@ -28,7 +28,7 @@ public class PaymentController {
     @Value("${razorpay.api.secret}")
     private String apiSecret;
 
-    @Value("${frontend.url}")
+    @Value("https://aniketmuni-ecommerce.vercel.app")
     private String frontendUrl;
 
     @Autowired
