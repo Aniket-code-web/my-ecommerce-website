@@ -25,15 +25,25 @@ const PaymentSuccess = () => {
     setReferenceId(query.get("razorpay_payment_link_id"));
     setPaymentStatus(query.get("razorpay_payment_link_status"));
 }, []);
+useEffect(() => {
+  if (!orderId || !paymentId) return;
 
-  useEffect(() => {
-    if (!orderId || !paymentId) return;
+  const token = localStorage.getItem("jwt");
+  if (!token) {
+    console.error("JWT missing after Razorpay redirect");
+    return;
+  }
 
-    const data = { orderId, paymentId };
-    dispatch(updatePayment(data));
-    dispatch(getOrderById(orderId));
+  const syncOrder = async () => {
+    await dispatch(updatePayment({ orderId, paymentId }));
+    await dispatch(getOrderById(orderId));
+    dispatch(getUserOrders());
+  };
 
-}, [orderId, paymentId]);
+  syncOrder();
+}, [orderId, paymentId, dispatch]);
+
+
 
     return (
         <div className="px-2 lg:px-36 mt-5">
