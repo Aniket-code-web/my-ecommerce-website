@@ -28,9 +28,6 @@ public class PaymentController {
     @Value("${razorpay.api.secret}")
     private String apiSecret;
 
-    @Value("${frontend.url}")
-    private String frontendUrl;
-
     @Autowired
     private OrderService orderService;
 
@@ -40,13 +37,10 @@ public class PaymentController {
     @Autowired
     private OrderRepository orderRepository;
 
-    // ================= CREATE PAYMENT LINK =================
-
     @PostMapping("/payments/{orderId}")
     public ResponseEntity<PaymentLinkResponse> createPaymentLink(
             @PathVariable Long orderId,
-            @RequestHeader("Authorization") String jwt
-    ) throws OrderException, RazorpayException {
+            @RequestHeader("Authorization") String jwt) throws OrderException, RazorpayException {
 
         Order order = orderService.findOrderById(orderId);
 
@@ -54,9 +48,11 @@ public class PaymentController {
             RazorpayClient razorpay = new RazorpayClient(apiKey, apiSecret);
 
             JSONObject paymentLinkRequest = new JSONObject();
+
             paymentLinkRequest.put("amount", order.getTotalDiscountedPrice() * 100);
             paymentLinkRequest.put("currency", "INR");
             paymentLinkRequest.put("reference_id", String.valueOf(orderId));
+
 
             JSONObject customer = new JSONObject();
             customer.put("name", order.getUser().getFirstName());
@@ -68,33 +64,34 @@ public class PaymentController {
             notify.put("email", true);
             paymentLinkRequest.put("notify", notify);
 
-            // ✅ CORRECT CALLBACK URL
             paymentLinkRequest.put(
                     "callback_url",
-                    "https://aniketmuni-ecommerce.vercel.app" + "/payment/" + order.getId()
+                    "https://aniketmuni-ecommerce.vercel.app/" + orderId + "?order_id=" + orderId
             );
             paymentLinkRequest.put("callback_method", "get");
 
             PaymentLink payment = razorpay.paymentLink.create(paymentLinkRequest);
 
-            PaymentLinkResponse res = new PaymentLinkResponse();
-            res.setPayment_link_id(payment.get("id"));
-            res.setPayment_link_url(payment.get("short_url"));
+            String paymentLinkId = payment.get("id");
+            String paymentLinkUrl = payment.get("short_url");
 
-            return new ResponseEntity<>(res, HttpStatus.CREATED);
+            PaymentLinkResponse res = new PaymentLinkResponse();
+            res.setPayment_link_id(paymentLinkId);
+            res.setPayment_link_url(paymentLinkUrl);
+
+            return new ResponseEntity<PaymentLinkResponse>(res, HttpStatus.CREATED);
+
+
 
         } catch (Exception e) {
             throw new RazorpayException(e.getMessage());
         }
+
     }
-
-    // ================= PAYMENT REDIRECT HANDLER =================
-
     @GetMapping("/payments")
     public ResponseEntity<ApiResponse> redirect(
-            @RequestParam("razorpay_payment_id") String paymentId,
-            @RequestParam("order_id") Long orderId
-    ) throws OrderException, RazorpayException {
+            @RequestParam(name="razorpay_payment_id") String paymentId,
+            @RequestParam(name="order_id") Long orderId) throws OrderException, RazorpayException {
 
         Order order = orderService.findOrderById(orderId);
         RazorpayClient razorpay = new RazorpayClient(apiKey, apiSecret);
@@ -102,7 +99,7 @@ public class PaymentController {
         try {
             Payment payment = razorpay.payments.fetch(paymentId);
 
-            if ("captured".equals(payment.get("status"))) {
+            if (payment.get("status").equals("captured")) {
 
                 if (order.getPaymentDetails() == null) {
                     order.setPaymentDetails(new PaymentDetails());
@@ -113,27 +110,34 @@ public class PaymentController {
                 order.getPaymentDetails().setPaymentStatus(payment.get("status"));
                 order.getPaymentDetails().setRazorpayPaymentId(payment.get("id"));
 
+                // Fetch PaymentLink details
                 String paymentLinkId = payment.get("payment_link_id");
+
                 if (paymentLinkId != null) {
-                    PaymentLink link = razorpay.paymentLink.fetch(paymentLinkId);
+                    PaymentLink paymentLinkDetails = razorpay.paymentLink.fetch(paymentLinkId);
+
                     order.getPaymentDetails().setRazorpayPaymentLinkId(paymentLinkId);
-                    order.getPaymentDetails().setRazorpayPaymentLinkReferenceId(link.get("reference_id"));
-                    order.getPaymentDetails().setRazorpayPaymentLinkSatus(link.get("status"));
+                    order.getPaymentDetails().setRazorpayPaymentLinkReferenceId(paymentLinkDetails.get("reference_id"));
+                    order.getPaymentDetails().setRazorpayPaymentLinkSatus(paymentLinkDetails.get("status"));
                 }
 
-                // ✅ MATCH FRONTEND STATUS EXPECTATION
-                order.setOrderStatus("PLACED");
+
+                order.setOrderStatus("CONFIRMED");
                 orderRepository.save(order);
             }
 
             ApiResponse res = new ApiResponse();
-            res.setMessage("Order placed successfully");
+            res.setMessage("your order get placed");
             res.setStatus(true);
 
-            return new ResponseEntity<>(res, HttpStatus.OK);
+            return new ResponseEntity<>(res, HttpStatus.ACCEPTED);
 
         } catch (Exception e) {
             throw new RazorpayException(e.getMessage());
         }
     }
+
+
+
+
 }
