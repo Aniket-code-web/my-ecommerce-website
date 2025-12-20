@@ -28,9 +28,10 @@ const OrdersSummary = () => {
   }, [orderId, dispatch]);
 
   // Handle checkout
-  const handleCheckout = () => {
-    dispatch(createPayment({ orderId }));
-  };
+ const handleCheckout = () => {
+  dispatch(createPayment(orderId));
+};
+
 
   // Show loading state
   if (!order) {
