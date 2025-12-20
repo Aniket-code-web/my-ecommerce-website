@@ -22,38 +22,42 @@ public class AppConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-                // ✅ CORS MUST COME FIRST
+                // ✅ ENABLE CORS FIRST
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
+                // ✅ DISABLE CSRF
                 .csrf(csrf -> csrf.disable())
 
+                // ✅ STATELESS SESSION
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
+                // ✅ AUTHORIZATION RULES
                 .authorizeHttpRequests(auth -> auth
 
-                        // ✅ Allow preflight
+                        // ✅ ALLOW PREFLIGHT REQUESTS
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ✅ Public APIs
+                        // ✅ PUBLIC ENDPOINTS
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/api/products/**").permitAll()
                         .requestMatchers("/api/category/**").permitAll()
 
-                        // 🔒 Protected APIs
+                        // 🔒 PROTECTED ENDPOINTS
                         .requestMatchers("/api/admin/**").authenticated()
                         .requestMatchers("/api/**").authenticated()
 
                         .anyRequest().permitAll()
                 )
 
-                .addFilterBefore(new JwtValidator(), BasicAuthenticationFilter.class);
+                // ✅ JWT FILTER MUST RUN AFTER CORS
+                .addFilterAfter(new JwtValidator(), BasicAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // ✅ GLOBAL CORS CONFIG
+    // ✅ GLOBAL CORS CONFIGURATION
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
@@ -61,7 +65,9 @@ public class AppConfig {
 
             CorsConfiguration cfg = new CorsConfiguration();
 
-            // ✅ Use allowedOriginPatterns (NOT allowedOrigins)
+            cfg.setAllowCredentials(true);
+
+            // ✅ IMPORTANT: use allowedOriginPatterns
             cfg.setAllowedOriginPatterns(List.of(
                     "http://localhost:5173",
                     "http://localhost:4200",
@@ -73,8 +79,6 @@ public class AppConfig {
             ));
 
             cfg.setAllowedHeaders(List.of("*"));
-            cfg.setAllowCredentials(true);
-
             cfg.setExposedHeaders(List.of("Authorization"));
             cfg.setMaxAge(3600L);
 

@@ -30,6 +30,12 @@ public class JwtValidator extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
+        // ✅ ALLOW PREFLIGHT REQUESTS
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            return;
+        }
+
         String path = request.getRequestURI();
 
         // ✅ Skip auth APIs
@@ -66,12 +72,11 @@ public class JwtValidator extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
             } catch (Exception e) {
-                // ❌ DO NOT THROW EXCEPTION
-                // ✅ Just clear context
                 SecurityContextHolder.clearContext();
             }
         }
 
         filterChain.doFilter(request, response);
     }
+
 }
