@@ -25,23 +25,26 @@ const PaymentSuccess = () => {
     setReferenceId(query.get("razorpay_payment_link_id"));
     setPaymentStatus(query.get("razorpay_payment_link_status"));
 }, []);
+
 useEffect(() => {
-  if (!orderId || !paymentId) return;
+  if (!orderId) return;
 
   const token = localStorage.getItem("jwt");
-  if (!token) {
-    console.error("JWT missing after Razorpay redirect");
-    return;
-  }
+  if (!token) return;
 
-  const syncOrder = async () => {
-    await dispatch(updatePayment({ orderId, paymentId }));
-    await dispatch(getOrderById(orderId));
-    dispatch(getUserOrders());
+  const run = async () => {
+    // 🔥 Only update payment if paymentId exists
+    if (paymentId) {
+      dispatch(updatePayment({ orderId, paymentId }));
+    }
+
+    // ✅ ALWAYS fetch order
+    dispatch(getOrderById(orderId));
   };
 
-  syncOrder();
+  run();
 }, [orderId, paymentId, dispatch]);
+;
 
 
 
