@@ -13,8 +13,7 @@ import org.springframework.security.web.authentication.www.BasicAuthenticationFi
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
 
 @Configuration
 public class AppConfig {
@@ -23,52 +22,60 @@ public class AppConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
+                // ✅ CORS MUST COME FIRST
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 .csrf(csrf -> csrf.disable())
+
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
+
                 .authorizeHttpRequests(auth -> auth
 
-                        // ✅ ALLOW PREFLIGHT REQUESTS
+                        // ✅ Allow preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ✅ PUBLIC APIs
+                        // ✅ Public APIs
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/api/products/**").permitAll()
                         .requestMatchers("/api/category/**").permitAll()
 
-                        // 🔒 ADMIN APIs
+                        // 🔒 Protected APIs
                         .requestMatchers("/api/admin/**").authenticated()
-
-                        // 🔒 USER APIs
                         .requestMatchers("/api/**").authenticated()
 
                         .anyRequest().permitAll()
                 )
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
                 .addFilterBefore(new JwtValidator(), BasicAuthenticationFilter.class);
 
         return http.build();
     }
 
+    // ✅ GLOBAL CORS CONFIG
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         return (HttpServletRequest request) -> {
+
             CorsConfiguration cfg = new CorsConfiguration();
 
-            cfg.setAllowedOrigins(Arrays.asList(
+            // ✅ Use allowedOriginPatterns (NOT allowedOrigins)
+            cfg.setAllowedOriginPatterns(List.of(
                     "http://localhost:5173",
                     "http://localhost:4200",
-                    "https://aniketmuni-ecommerce.vercel.app" // ✅ NO SLASH
+                    "https://aniketmuni-ecommerce.vercel.app"
             ));
 
-            cfg.setAllowedMethods(Arrays.asList(
+            cfg.setAllowedMethods(List.of(
                     "GET", "POST", "PUT", "DELETE", "OPTIONS"
             ));
 
-            cfg.setAllowedHeaders(Collections.singletonList("*"));
+            cfg.setAllowedHeaders(List.of("*"));
             cfg.setAllowCredentials(true);
-            cfg.setExposedHeaders(Arrays.asList("Authorization"));
+
+            cfg.setExposedHeaders(List.of("Authorization"));
             cfg.setMaxAge(3600L);
 
             return cfg;
