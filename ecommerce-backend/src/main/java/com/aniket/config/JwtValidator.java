@@ -7,7 +7,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -22,43 +21,53 @@ import java.util.List;
 
 @Component
 public class JwtValidator extends OncePerRequestFilter {
+
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
 
         String path = request.getRequestURI();
 
-        // ⛔ Bypass JWT validation for login & signup
-        if (path.startsWith("/auth/signin") || path.startsWith("/auth/signup")) {
+        if (path.startsWith("/auth/")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String jwt = request.getHeader(JwtConstant.JWT_HEADER);
+        String header = request.getHeader(JwtConstant.JWT_HEADER);
 
-        if (jwt != null && jwt.startsWith("Bearer ")) {
-            jwt = jwt.substring(7);
+        if (header == null || !header.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-            try {
-                SecretKey key = Keys.hmacShaKeyFor(JwtConstant.SECRET_KEY.getBytes());
+        try {
+            String token = header.substring(7);
 
-                Claims claims = Jwts.parserBuilder()
-                        .setSigningKey(key)
-                        .build()
-                        .parseClaimsJws(jwt)
-                        .getBody();
+            SecretKey key =
+                    Keys.hmacShaKeyFor(JwtConstant.SECRET_KEY.getBytes());
 
-                String email = (String) claims.get("email");
-                String authorities = (String) claims.get("authorities");
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
 
-                List<GrantedAuthority> auths = AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
+            String email = claims.get("email", String.class);
+            String authorities = claims.get("authorities", String.class);
 
-                Authentication auth = new UsernamePasswordAuthenticationToken(email, null, auths);
-                SecurityContextHolder.getContext().setAuthentication(auth);
+            List<GrantedAuthority> auths =
+                    AuthorityUtils.commaSeparatedStringToAuthorityList(authorities);
 
-            } catch (Exception e) {
-                throw new BadCredentialsException("invalid token... from jwt validation");
-            }
+            Authentication authentication =
+                    new UsernamePasswordAuthenticationToken(email, null, auths);
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        } catch (Exception e) {
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);

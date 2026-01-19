@@ -9,7 +9,6 @@ import com.aniket.request.LoginRequest;
 import com.aniket.response.AuthResponse;
 import com.aniket.service.CartService;
 import com.aniket.service.CustomeUserServiceImplementation;
-import com.aniket.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -18,93 +17,99 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
 
-    private UserRepository userRepository;
-    private JwtProvider jwtProvider;
-    private PasswordEncoder passwordEncoder;
-    private CustomeUserServiceImplementation customeUserServiceImplementation;
-    private CartService cartService;
+    private final UserRepository userRepository;
+    private final JwtProvider jwtProvider;
+    private final PasswordEncoder passwordEncoder;
+    private final CustomeUserServiceImplementation customeUserService;
+    private final CartService cartService;
 
-    public AuthController(UserRepository userRepository,CustomeUserServiceImplementation customeUserServiceImplementation,PasswordEncoder passwordEncoder,JwtProvider jwtProvider,CartService cartService){
-        this.userRepository=userRepository;
-        this.customeUserServiceImplementation=customeUserServiceImplementation;
-        this.passwordEncoder=passwordEncoder;
-        this.jwtProvider=jwtProvider;
-        this.cartService=cartService;
+    public AuthController(
+            UserRepository userRepository,
+            CustomeUserServiceImplementation customeUserService,
+            PasswordEncoder passwordEncoder,
+            JwtProvider jwtProvider,
+            CartService cartService
+    ) {
+        this.userRepository = userRepository;
+        this.customeUserService = customeUserService;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtProvider = jwtProvider;
+        this.cartService = cartService;
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<AuthResponse>createUserHandler(@RequestBody User user) throws UserException{
-        String email = user.getEmail();
-        String password = user.getPassword();
-        String firstString = user.getFirstName();
-        String lastString = user.getLastName();
+    public ResponseEntity<AuthResponse> signup(@RequestBody User user)
+            throws UserException {
 
-
-        User isEmailExist = userRepository.findByEmail((email));
-
-        if(isEmailExist!=null){
-            throw new UserException("Email is already used with another account");
+        if (userRepository.findByEmail(user.getEmail()) != null) {
+            throw new UserException("Email already exists");
         }
-        User createdUser = new User();
-        createdUser.setEmail(email);
-        createdUser.setPassword(passwordEncoder.encode(password));
-        createdUser.setFirstName(firstString);
-        createdUser.setLastName(lastString);
 
-        User savedUser = userRepository.save(createdUser);
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        User savedUser = userRepository.save(user);
         Cart cart = cartService.createCart(savedUser);
 
-        Authentication authentication = new UsernamePasswordAuthenticationToken(savedUser.getEmail(),savedUser.getPassword());
+        UserDetails userDetails =
+                customeUserService.loadUserByUsername(savedUser.getEmail());
+
+        Authentication authentication =
+                new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()
+                );
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String token = jwtProvider.generateToken(authentication);
 
-        AuthResponse authResponse = new AuthResponse(token,"Signup Success");
-        authResponse.setJwt(token);
-        authResponse.setMessage("Signup Success");
-
-        return new ResponseEntity<AuthResponse>(authResponse, HttpStatus.CREATED);
-
+        return new ResponseEntity<>(
+                new AuthResponse(token, "Signup Success"),
+                HttpStatus.CREATED
+        );
     }
+
     @PostMapping("/signin")
-    public ResponseEntity<AuthResponse> loginUserHandler(@RequestBody LoginRequest loginRequest){
+    public ResponseEntity<AuthResponse> signin(
+            @RequestBody LoginRequest loginRequest
+    ) {
 
-        String username =loginRequest.getEmail();
-        String password =loginRequest.getPassword();
+        Authentication authentication =
+                authenticate(loginRequest.getEmail(), loginRequest.getPassword());
 
-        Authentication authentication = authenticate(username,password);
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String token = jwtProvider.generateToken(authentication);
 
-        AuthResponse authResponse = new AuthResponse(token,"Signin Success");
-        authResponse.setJwt(token);
-        authResponse.setMessage("Signin Success");
-
-
-        return new ResponseEntity<AuthResponse>(authResponse, HttpStatus.CREATED);
-
+        return new ResponseEntity<>(
+                new AuthResponse(token, "Signin Success"),
+                HttpStatus.OK
+        );
     }
 
-    private Authentication authenticate(String username, String password) {
-        UserDetails userDetails= customeUserServiceImplementation.loadUserByUsername(username);
+    private Authentication authenticate(String email, String password) {
 
-        if(userDetails==null){
-            throw new BadCredentialsException("invalid Username");
+        UserDetails userDetails =
+                customeUserService.loadUserByUsername(email);
+
+        if (userDetails == null) {
+            throw new BadCredentialsException("Invalid email");
         }
-        if(!passwordEncoder.matches(password,userDetails.getPassword())){
-            throw new BadCredentialsException("invalid password..");
+
+        if (!passwordEncoder.matches(password, userDetails.getPassword())) {
+            throw new BadCredentialsException("Invalid password");
         }
-        return new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities());
+
+        return new UsernamePasswordAuthenticationToken(
+                userDetails,
+                null,
+                userDetails.getAuthorities()
+        );
     }
-
 }

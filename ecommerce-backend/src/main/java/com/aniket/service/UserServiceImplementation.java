@@ -6,38 +6,40 @@ import com.aniket.model.User;
 import com.aniket.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
-
 @Service
-public class UserServiceImplementation implements UserService{
+public class UserServiceImplementation implements UserService {
 
-    private UserRepository userRepository;
-    private JwtProvider jwtProvider;
+    private final UserRepository userRepository;
+    private final JwtProvider jwtProvider;
 
-    public UserServiceImplementation(UserRepository userRepository,JwtProvider jwtProvider){
-        this.userRepository=userRepository;
-        this.jwtProvider=jwtProvider;
+    public UserServiceImplementation(UserRepository userRepository,
+                                     JwtProvider jwtProvider) {
+        this.userRepository = userRepository;
+        this.jwtProvider = jwtProvider;
     }
 
     @Override
     public User findUserById(Long userId) throws UserException {
-        Optional<User> user = userRepository.findById(userId);
-        if(user.isPresent()){
-            return user.get();
-        }
-        else {
-            throw new UserException("user not found with id"+userId);
-        }
+        return userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new UserException("User not found with id " + userId));
     }
 
     @Override
     public User findUserProfileByJwt(String jwt) throws UserException {
-        String email=jwtProvider.getEmailFromToken(jwt);
+
+        if (jwt == null || !jwt.startsWith("Bearer ")) {
+            throw new UserException("Invalid or missing JWT");
+        }
+
+        String token = jwt.substring(7); // remove Bearer
+        String email = jwtProvider.getEmailFromToken(token);
 
         User user = userRepository.findByEmail(email);
-        if(user==null){
-            throw new UserException("user not found with email"+email);
+        if (user == null) {
+            throw new UserException("User not found with email " + email);
         }
+
         return user;
     }
 }
